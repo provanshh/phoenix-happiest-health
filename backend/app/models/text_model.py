@@ -1,10 +1,11 @@
-"""Symptom and clinical-note interpretation."""
+"""Symptom and clinical-note interpretation using negation-aware rule screening."""
 
 from __future__ import annotations
 
 import re
 from typing import Any
 
+from ..data_ingestion.provenance import ProvenanceType, make_provenance
 from ..services.feature_extraction import contribution_dict, score_band, warning
 from ..utils.config import clamp
 from ..utils.validators import percentage
@@ -88,19 +89,23 @@ def _combination_score(matched_terms: set[str]) -> tuple[float, list[dict[str, s
         flags.append(warning(
             "Chest pain with breathing difficulty",
             "emergency",
-            "Emergency warning pattern detected from symptom combination.",
+            "Emergency warning pattern detected from symptom combination. Seek urgent emergency evaluation.",
         ))
     if fainting and "palpitations" in matched_terms:
         score = max(score, 50.0)
         flags.append(warning(
             "Fainting with palpitations",
             "emergency",
-            "Emergency warning pattern detected from symptom combination.",
+            "Emergency warning pattern detected from symptom combination. Seek urgent evaluation.",
         ))
     return score, flags
 
 
-def analyze_text_notes(data: dict[str, Any]) -> dict[str, Any]:
+def analyze_text_notes(data: dict[str, Any] | str | None, provenance: dict[str, Any] | None = None) -> dict[str, Any]:
+    if isinstance(data, str):
+        data = {"symptoms": data}
+    data = data or {}
+
     parts = [
         str(data.get("symptoms", "")),
         str(data.get("lifestyle_notes", "")),
@@ -110,6 +115,29 @@ def analyze_text_notes(data: dict[str, Any]) -> dict[str, Any]:
     ]
     text = "\n".join(part for part in parts if part.strip())
     input_present = bool(text.strip())
+
+    if not input_present:
+        return {
+            "available": False,
+            "status": "no_text_provided",
+            "risk_score": 0.0,
+            "confidence_score": 0.0,
+            "risk_category": "No Data",
+            "symptom_severity": "None",
+            "matched_symptoms": [],
+            "negated_symptoms": [],
+            "symptom_scores": {},
+            "symptom_contributions": {},
+            "interpretation": "No symptom text was provided, so symptom-based risk was not calculated.",
+            "warning_flags": [],
+            "extracted_symptoms": [],
+            "symptom_risk_score": 0.0,
+            "emergency_flags": [],
+            "explanation": "No symptoms entered.",
+            "input_present": False,
+            "text_length": 0,
+            "provenance": None,
+        }
 
     emergency, negated_emergency = _match_terms(text, EMERGENCY_TERMS)
     high, negated_high = _match_terms(text, HIGH_TERMS)
@@ -145,32 +173,38 @@ def analyze_text_notes(data: dict[str, Any]) -> dict[str, Any]:
 
     flags = []
     for term in emergency:
-        flags.append(warning("Emergency symptom", "emergency", f"Reported phrase: {term}."))
+        flags.append(warning("Emergency symptom", "emergency", f"Reported phrase: '{term}'."))
     flags.extend(combination_flags)
     for term in high:
-        flags.append(warning("Cardiovascular symptom", "high", f"Reported symptom: {term}."))
+        flags.append(warning("Cardiovascular symptom", "high", f"Reported symptom: '{term}'."))
     for term in medium:
-        flags.append(warning("General symptom/lifestyle factor", "medium", f"Reported factor: {term}."))
+        flags.append(warning("General symptom/lifestyle factor", "medium", f"Reported factor: '{term}'."))
 
     matched = list(emergency) + list(high) + list(medium)
     negated_terms = negated_emergency + negated_high + negated_medium + negated_low
     interpretation = (
-        "Emergency warning symptoms were detected. Seek urgent professional care if this reflects current symptoms."
+        "Emergency warning symptoms were detected. Seek urgent emergency professional care immediately."
         if emergency or combination_flags
         else "Symptoms suggest elevated cardiovascular review priority."
         if high
         else "Symptoms currently appear low to moderate based on keyword screening."
-        if input_present
-        else "No symptom text was provided, so symptom-based risk was not available."
     )
 
-    confidence = 48
-    if input_present:
-        confidence = 68 if matched else 58
+    confidence = 68 if matched else 58
     if emergency or combination_flags:
         confidence = 78
 
+    prov = provenance or make_provenance(
+        ProvenanceType.AUTHORIZED_PATIENT_DATA,
+        "User Symptom Notes",
+        "active_session",
+        "User Provided",
+        limitations=["Regex keyword extraction only; not an AI clinical diagnosis."],
+    ).to_dict()
+
     return {
+        "available": True,
+        "status": "processed",
         "risk_score": percentage(risk_score),
         "risk_category": score_band(risk_score),
         "symptom_severity": severity,
@@ -185,6 +219,8 @@ def analyze_text_notes(data: dict[str, Any]) -> dict[str, Any]:
         "emergency_flags": [flag for flag in flags if flag.get("severity") == "emergency"],
         "explanation": interpretation,
         "confidence_score": percentage(confidence),
-        "input_present": input_present,
+        "input_present": True,
         "text_length": len(text),
+        "nlp_method": "regex_dictionary_with_negation",
+        "provenance": prov,
     }

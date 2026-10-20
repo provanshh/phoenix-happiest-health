@@ -5,15 +5,10 @@ from __future__ import annotations
 from io import BytesIO
 from typing import Any
 
+from ..data_ingestion.provenance import ProvenanceType, make_provenance
 from ..services.feature_extraction import bp_stage, extract_numeric_indicators, score_band, warning
 from ..utils.config import clamp
 from ..utils.validators import percentage
-
-
-SAMPLE_REPORT_TEXT = (
-    "ECG: sinus rhythm. BP 138/86. HR 88. SpO2 96%. "
-    "Total cholesterol 212. LDL 136. Glucose 118. Impression: borderline cardiovascular risk."
-)
 
 
 def _ocr_image(raw: bytes | None) -> str:
@@ -36,14 +31,57 @@ def _bytes_to_possible_text(raw: bytes | None) -> str:
         decoded = raw.decode("utf-8", errors="ignore")
     except Exception:
         return ""
-    return decoded if any(token in decoded.lower() for token in ("bp", "ecg", "cholesterol", "glucose", "spo2")) else ""
+    return decoded if any(token in decoded.lower() for token in ("bp", "ecg", "cholesterol", "glucose", "spo2", "troponin")) else ""
 
 
-def analyze_medical_image(raw: bytes | None = None, filename: str | None = None) -> dict[str, Any]:
+def analyze_medical_image(
+    raw: bytes | None = None,
+    filename: str | None = None,
+    provenance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Extract clinical values from medical report images via OCR. Rejects empty inputs without mock fallbacks."""
+    if not raw:
+        return {
+            "available": False,
+            "status": "no_image_provided",
+            "error": "No medical report image was provided. Upload an image or report file.",
+            "risk_score": 0.0,
+            "confidence_score": 0.0,
+            "ocr_text": "",
+            "extracted_values": {},
+            "image_feature_scores": {},
+            "summary": "No report image provided.",
+            "extracted_text": "",
+            "report_summary": "No report image provided.",
+            "image_risk_score": 0.0,
+            "image_quality_note": "No image",
+            "explanation": "No medical report image uploaded.",
+            "warning_flags": [],
+            "provenance": None,
+        }
+
     ocr_text = _ocr_image(raw) or _bytes_to_possible_text(raw)
-    demo_mode = raw is None or not ocr_text.strip()
     if not ocr_text.strip():
-        ocr_text = SAMPLE_REPORT_TEXT
+        return {
+            "available": False,
+            "status": "no_text_extracted",
+            "error": "OCR could not detect readable clinical text in the uploaded image. Check image resolution or install Tesseract OCR.",
+            "risk_score": 0.0,
+            "confidence_score": 0.0,
+            "ocr_text": "",
+            "extracted_values": {},
+            "image_feature_scores": {},
+            "summary": "Unreadable report image.",
+            "extracted_text": "",
+            "report_summary": "Unreadable report image.",
+            "image_risk_score": 0.0,
+            "image_quality_note": "OCR failed to detect readable text",
+            "explanation": "No structured or readable text was found in the uploaded file.",
+            "warning_flags": [
+                warning("Unreadable Report Image", "medium", "OCR failed to detect clinical keywords or values from the uploaded image.")
+            ],
+            "provenance": None,
+        }
 
     extracted = extract_numeric_indicators(ocr_text)
     scores = {
@@ -70,38 +108,46 @@ def analyze_medical_image(raw: bytes | None = None, filename: str | None = None)
     risk_score = clamp(sum(scores.values()))
     flags = []
     if "troponin" in extracted and extracted["troponin"] > 0.04:
-        flags.append(warning("Elevated troponin text", "high", "OCR detected troponin above the common rule-based threshold."))
+        flags.append(warning("Elevated troponin in report", "high", "OCR detected troponin above the standard threshold. Requires clinical verification."))
     if "systolic_bp" in extracted and "diastolic_bp" in extracted:
         stage = bp_stage(extracted["systolic_bp"], extracted["diastolic_bp"])
         if "Hypertension" in stage or "crisis" in stage:
             flags.append(warning("Report BP finding", "medium", f"OCR detected BP in the {stage.lower()}."))
     if any(term in lowered for term in ("ischemia", "stemi", "myocardial infarction", "acute coronary")):
-        flags.append(warning("High-attention report keyword", "high", "OCR text contained a potentially urgent cardiovascular term."))
+        flags.append(warning("Critical report keyword", "high", "OCR text contained an urgent cardiovascular term. Requires immediate clinical verification."))
     elif scores["keyword_findings"] > 0:
         flags.append(warning("Report keyword finding", "medium", "OCR text contained potentially relevant cardiovascular terms."))
 
     summary = (
-        "OCR extracted report-like values and cardiovascular keywords."
+        "OCR successfully extracted structured report values and cardiovascular terms."
         if extracted
-        else "No structured values were extracted; demo report text was used."
+        else "OCR detected text but no standard numeric vitals/lab values were matched."
     )
 
+    prov = provenance or make_provenance(
+        ProvenanceType.AUTHORIZED_PATIENT_DATA,
+        "User Document OCR",
+        filename or "uploaded_report",
+        "User Provided",
+        limitations=["OCR output is unverified machine text; must be confirmed against original document."],
+    ).to_dict()
+
     return {
+        "available": True,
+        "status": "processed",
         "risk_score": percentage(risk_score),
         "risk_category": score_band(risk_score),
-        "filename": filename or "sample_report.png",
-        "ocr_text": ocr_text[:1600],
+        "filename": filename or "report_document",
+        "ocr_text": ocr_text[:2000],
         "extracted_values": extracted,
         "image_feature_scores": {name: round(value, 2) for name, value in scores.items()},
         "summary": summary,
-        "extracted_text": ocr_text[:1600],
+        "extracted_text": ocr_text[:2000],
         "report_summary": summary,
         "image_risk_score": percentage(risk_score),
-        "image_quality_note": "OCR text extracted" if not demo_mode else "Demo or unclear image fallback used",
+        "image_quality_note": "OCR text extracted successfully",
         "explanation": summary,
         "warning_flags": flags,
-        "confidence_score": percentage(min(45, 72 if extracted else 42) if demo_mode else (72 if extracted else 42)),
-        "demo_mode": demo_mode,
+        "confidence_score": percentage(75 if extracted else 45),
+        "provenance": prov,
     }
-
-

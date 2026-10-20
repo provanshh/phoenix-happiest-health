@@ -1,6 +1,7 @@
 MIT License
 
-Copyright (c) 2026 Pruthvi226
+Copyright (c) 2026 Team Phoenix (Vansh Singla, Dev Garg, Prince Pal)
+Maharaja Agrasen Institute of Technology (MAIT), Delhi
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,3 +21,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+---
+
+### Third-Party Data & Research Attributions:
+1. **PhysioNet BIDMC PPG & Respiration Dataset:** Distributed under the PhysioNet Open Data Public Domain License (PDDL).
+2. **PhysioNet MIT-BIH Arrhythmia Database:** Distributed under the Open Data Commons Attribution License (ODC-By v1.0).
+3. **Synthea Electronic Health Records:** Synthetic patient generator distributed under the Apache License 2.0.

@@ -1,4 +1,4 @@
-"""Multimodal late-fusion route."""
+"""Multimodal late-fusion route with strict data provenance."""
 
 from __future__ import annotations
 
@@ -8,10 +8,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from ..models.fusion_model import calculate_multimodal_risk
-from ..models.image_model import analyze_medical_image
-from ..models.signal_model import analyze_signal_csv
 from ..models.tabular_model import analyze_tabular
-from ..models.text_model import analyze_text_notes
 from ..utils.disclaimer import with_disclaimer
 
 
@@ -33,10 +30,12 @@ def _dump(model: BaseModel) -> dict[str, Any]:
 @router.post("/multimodal-risk")
 async def multimodal_risk(payload: FusionPayload | None = None) -> dict:
     data = _dump(payload) if payload else {}
-    signal_result = data.get("signal_result") or analyze_signal_csv()
-    patient = data.get("patient") or {}
-    tabular_result = data.get("tabular_result") or analyze_tabular(patient)
-    text_result = data.get("text_result") or analyze_text_notes({})
-    image_result = data.get("image_result") or analyze_medical_image()
-    return with_disclaimer(calculate_multimodal_risk(signal_result, tabular_result, text_result, image_result, patient))
+    signal_result = data.get("signal_result")
+    patient = data.get("patient")
+    tabular_result = data.get("tabular_result")
+    if tabular_result is None and patient:
+        tabular_result = analyze_tabular(patient)
+    text_result = data.get("text_result")
+    image_result = data.get("image_result")
 
+    return with_disclaimer(calculate_multimodal_risk(signal_result, tabular_result, text_result, image_result, patient))

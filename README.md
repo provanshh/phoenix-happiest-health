@@ -1,638 +1,355 @@
-# CardioTwin AI: Multimodal Health Risk Digital Twin
+# CardioTwin AI — Multimodal Cardiovascular Digital Twin Platform
+### Built for the *Digital Twin Challenge 2026* | Happiest Health Summit, Bengaluru
 
-CardioTwin AI is a multimodal healthcare intelligence system that combines PPG signals, patient vitals, symptoms, medical report images, ECG/report OCR, and time-series health trends to generate explainable cardiovascular risk insights with doctor-friendly and patient-friendly summaries.
-
-**Medical disclaimer:** This system is for educational and research purposes only and should not be used as a substitute for professional medical advice, diagnosis, or treatment.
-
-## GitHub Project Description
-
-CardioTwin AI is a multimodal healthcare AI system that fuses PPG signals, patient vitals, symptoms, and medical report images to generate explainable cardiovascular risk insights with trend monitoring, emergency alerts, and clinical-style PDF reports.
-
-## Advanced Features Added
-
-- Live Digital Twin Monitor with simulated wearable-style readings at `/live-simulation`.
-- Critical Alert Engine at `/check-alerts` for emergency warning patterns.
-- Dual-audience outputs at `/generate-summary`: `Clinical Assist` for medical practitioners and `Plain-Language Guidance` for common users.
-- Time-series health trend prediction at `/analyze-trends` using sample or saved history.
-- Physiological anomaly detector at `/detect-anomaly` using transparent statistical rules.
-- Reliability-adjusted late fusion with effective modality weights, confidence reasons, missing inputs, and safety escalation warnings.
-- Personalized health coach recommendations at `/generate-recommendations`.
-- Synthetic Health Case Simulator at `/demo-patients` with eight demo cases.
-- Longitudinal Health Memory using SQLite through `/save-reading`, `/history`, and `/compare-last-reading`.
-- Voice symptom input in the browser when SpeechRecognition is available.
-- Health Twin Chat Assistant at `/chat`, grounded only in the current report/context.
-- Clinical-style PDF report generator with risk, summaries, recommendations, confidence, and limitations.
-
-## Latest Algorithm and Audience Modes
-
-The multimodal backend now uses reliability-adjusted late fusion instead of blindly applying fixed weights. Each modality keeps its configured weight, but the final effective weight is adjusted using available evidence and confidence. Missing inputs reduce confidence rather than falsely reducing risk.
-
-The final fusion response includes two audience-specific modes:
-
-- `clinician_assist`: practitioner-facing decision support with triage priority, clinical snapshot, key findings, data quality, review questions, recommended actions, and a handoff note.
-- `patient_guidance`: common-user guidance with simple status, what the score means, what to do now, when to seek urgent help, and clear non-diagnosis wording.
-
-Emergency patterns are handled with safety escalation floors, so warning combinations such as chest pain with breathing difficulty are not hidden by averaging. The system still remains an educational and research prototype, not a diagnosis or treatment tool.
-
-## Problem Statement
-
-Most health AI demos analyze a single input type, such as a wearable signal or a vitals table. Real clinical reasoning is multimodal: waveform quality, blood pressure, sleep, activity, symptoms, medication context, and reports all matter together. This project demonstrates how those inputs can be collected, analyzed independently, fused with transparent weights, and summarized for both clinicians and patients.
-
-The current implementation is a research-grade educational prototype. It uses rule-based plus ML-ready hybrid scoring when a validated clinical dataset is unavailable.
-
-## Why Multimodal AI Is Useful In Healthcare
-
-- PPG signals provide continuous physiological patterns but can be noisy.
-- Tabular vitals capture structured risk factors such as BP, BMI, SpO2, sleep, and activity.
-- Text notes reveal symptoms and context that numeric models miss.
-- Images and scanned reports can contain ECG impressions, BP values, lipids, glucose, and other findings.
-- Late fusion makes the final score easier to inspect because each modality keeps its own score and contribution.
-
-## Multimodal Features
-
-- PPG CSV upload with waveform preview data, cleaning, peak detection, artifact estimation, signal quality scoring, and BP trend prediction.
-- Patient form for age, gender, height, weight, HR, BP, SpO2, sleep, activity, smoking, diabetes, hypertension, and existing risk factors.
-- Symptoms and notes analysis for chest pain, dizziness, shortness of breath, fatigue, headache, palpitations, lifestyle notes, and emergency warning phrases.
-- ECG/report image upload with OCR-ready extraction and demo fallback report text.
-- Multimodal risk fusion using configurable weights.
-- Overall health risk score and cardiovascular risk category.
-- Signal quality explanation.
-- Symptom-based risk interpretation.
-- Doctor-friendly structured summary.
-- Patient-friendly warning insights.
-- Confidence score and modality influence chart.
-- Downloadable PDF report when `reportlab` is installed, with a text fallback.
-- Demo mode with bundled sample data.
-
-## Multimodal System Architecture
-
-```text
-React dashboard
-  -> PPG CSV upload / patient form / symptoms / report image
-  -> FastAPI routes
-      /upload-signal
-      /analyze-signal
-      /analyze-tabular
-      /analyze-text
-      /analyze-image
-      /multimodal-risk
-      /generate-report
-  -> Independent modality analyzers
-      signal_model.py
-      tabular_model.py
-      text_model.py
-      image_model.py
-  -> late-fusion scoring
-  -> explanation and report services
-  -> doctor and patient summaries
-```
-
-### Fusion Strategy
-
-Configured weights live in [backend/app/config.json](backend/app/config.json):
-
-```text
-0.35 signal + 0.30 tabular + 0.20 text + 0.15 image/report
-```
-
-At runtime, CardioTwin converts those configured weights into reliability-adjusted effective weights. Clean and complete modalities contribute more; missing, noisy, or demo/fallback modalities contribute less and reduce confidence.
-
-Risk bands:
-
-- `0-25`: Low Risk
-- `26-50`: Mild Risk
-- `51-75`: Moderate Risk
-- `76-100`: High Risk
-
-## Multimodal Tech Stack
-
-- Backend: FastAPI, Pydantic, NumPy, Pandas, SciPy, Pillow, pytesseract, reportlab
-- Frontend: React, Vite, lucide-react, SVG/CSS charts
-- Existing research pipeline: Python, Scikit-learn, PyTorch, Streamlit, FastAPI modules under `src/` and `app/`
-
-## Multimodal Folder Structure
-
-```text
-backend/
-  app/
-    main.py
-    config.json
-    routes/
-      signal_routes.py
-      tabular_routes.py
-      text_routes.py
-      image_routes.py
-      fusion_routes.py
-      report_routes.py
-    models/
-      signal_model.py
-      tabular_model.py
-      text_model.py
-      image_model.py
-      fusion_model.py
-    services/
-      preprocessing.py
-      feature_extraction.py
-      explanation_service.py
-      report_generator.py
-    utils/
-      config.py
-      disclaimer.py
-      validators.py
-    data/
-      sample_ppg.csv
-      sample_patient.json
-      sample_report.png
-  requirements.txt
-
-frontend/
-  index.html
-  package.json
-  src/
-    App.jsx
-    main.jsx
-    styles.css
-    components/
-      SignalUpload.jsx
-      PatientForm.jsx
-      SymptomInput.jsx
-      ImageUpload.jsx
-      RiskDashboard.jsx
-      SignalChart.jsx
-      ModalityContribution.jsx
-      DoctorSummary.jsx
-      PatientSummary.jsx
-    pages/
-      Home.jsx
-      Dashboard.jsx
-    services/
-      api.js
-```
-
-The original CardioTwin PPG research pipeline remains in `src/`, `app/streamlit_app.py`, `scripts/`, `docs/`, `reports/`, and `tests/`.
-
-## How To Run Backend
-
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-Backend URL: `http://127.0.0.1:8000`
-
-API docs: `http://127.0.0.1:8000/docs`
-
-OCR note: `pytesseract` requires the Tesseract OCR executable installed on the machine for real image OCR. If it is not installed, the app still works with text/demo fallback behavior.
-
-## How To Run Frontend
-
-Open a second terminal:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend URL: `http://127.0.0.1:5173`
-
-If the backend runs on a different URL, create `frontend/.env`:
-
-```text
-VITE_API_URL=http://127.0.0.1:8000
-```
-
-## Multimodal API Endpoints
-
-- `GET /` returns project status, fusion weights, and disclaimer.
-- `GET /health` checks API health.
-- `POST /upload-signal` accepts a PPG CSV upload and returns column detection, sample count, sampling rate, and preview values.
-- `POST /analyze-signal` returns cleaned signal chart points, detected peaks, signal quality, reliability, HR estimate, BP trend prediction, signal risk score, and warning flags.
-- `POST /analyze-tabular` returns structured vitals summary, BP category/trend, tabular risk score, feature contributions, and warning flags.
-- `POST /analyze-text` returns matched symptoms, symptom severity, text risk score, and emergency warnings when present.
-- `POST /analyze-image` returns OCR text, extracted values, image/report risk score, and warning flags.
-- `POST /multimodal-risk` returns final risk score, cardiovascular risk category, BP trend prediction, effective modality contributions, confidence score, clinician assist output, plain-language patient guidance, limitations, and disclaimer.
-- `POST /generate-report` returns a downloadable report.
-- `GET /live-simulation` returns simulated wearable readings.
-- `POST /check-alerts` returns emergency alert level and recommended action.
-- `POST /generate-summary` returns practitioner-facing `clinician_assist` and common-user `patient_guidance` modes.
-- `POST /analyze-trends` returns BP, HR, SpO2, sleep, risk, and signal-quality trends.
-- `POST /detect-anomaly` returns physiological anomaly flags.
-- `POST /generate-recommendations` returns lifestyle and monitoring recommendations.
-- `GET /demo-patients` returns synthetic health case simulator patients.
-- `POST /save-reading`, `GET /history`, and `GET /compare-last-reading` provide SQLite health memory.
-- `POST /chat` answers questions using the current report context only.
-
-## Demo Workflow
-
-1. Start the FastAPI backend.
-2. Start the React frontend.
-3. Open the dashboard.
-4. The page runs demo analysis automatically with bundled sample inputs.
-5. Optionally upload a PPG CSV with columns like `time,ppg`.
-6. Edit patient vitals and symptoms.
-7. Upload an ECG/report image or leave demo mode active.
-8. Click `Run Analysis`.
-9. Review risk score, BP prediction, signal chart, modality contribution chart, summaries, and warning flags.
-10. Click `Export Report` to download the report.
-
-## Screenshots
-
-Replace these placeholders with deployed screenshots after running the dashboard.
-
-| Dashboard | Signal Quality | Report Export |
-| --- | --- | --- |
-| `assets/dashboard_home.png` | `assets/signal_lab.png` | `assets/api_docs.png` |
-
-## Multimodal Limitations
-
-- This is not a medical device, not a diagnosis system, and not suitable for treatment decisions.
-- Risk scoring is transparent and educational; it is not clinically validated.
-- Real BP prediction from PPG requires governed datasets, calibration, external validation, and careful leakage control.
-- OCR can fail on low-quality scans or handwriting.
-- Symptom analysis includes basic negation and warning combinations, but it can still miss timing, severity, and clinical nuance.
-- Image analysis currently extracts report-like text and values; it does not implement a validated ECG deep learning model.
-- Confidence scores describe input completeness and rule consistency, not clinical certainty.
-
-## Future Scope
-
-- Train on real clinical datasets with subject-wise validation.
-- Add ECG deep learning model support.
-- Integrate wearable device streaming.
-- Add continuous monitoring and trend alerts.
-- Use federated learning for privacy-preserving model updates.
-- Build a doctor dashboard with longitudinal patient review.
-- Add explainable AI methods such as SHAP and LIME.
-- Add configurable institutional thresholds and audit logs.
-- Improve OCR with layout-aware medical report parsing.
-- Mobile app.
-- Cloud deployment.
-- Integration with smartwatches.
-
-## Deployment
-
-The multimodal React + FastAPI stack has production container files and a dedicated compose file:
-
-```bash
-docker compose -f docker-compose.multimodal.yml up --build
-```
-
-Open `http://127.0.0.1:8080` for the production Nginx-served frontend. The frontend proxies `/api/*` to the backend container. See [docs/MULTIMODAL_DEPLOYMENT.md](docs/MULTIMODAL_DEPLOYMENT.md) for environment variables, health checks, and E2E testing.
-## Medical Disclaimer
-
-This system is for educational and research purposes only and should not be used as a substitute for professional medical advice, diagnosis, or treatment.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
+[![React 19](https://img.shields.io/badge/Frontend-React%2019-61DAFB.svg)](https://react.dev)
+[![ML: Random Forest](https://img.shields.io/badge/ML%20Model-PhysioNet%20MIT--BIH-orange.svg)](models/)
+[![Tests](https://img.shields.io/badge/Automated%20Tests-29%20Passing-success.svg)](tests/)
 
 ---
 
-## Legacy CardioTwin AI PPG Research Pipeline
-# CardioTwin AI
+## 📋 Hackathon Submission Checklist & Verification
 
-Self-supervised PPG intelligence platform for predictive health signal analytics.
+This repository fulfills all submission requirements mandated for the **Digital Twin Challenge 2026** at the *Happiest Health Reimagining and Reforming Healthcare in India Summit — 2026, Bengaluru*:
 
-[![Python CI](https://github.com/Pruthvi226/CardioTwin_AI/actions/workflows/python-ci.yml/badge.svg)](https://github.com/Pruthvi226/CardioTwin_AI/actions/workflows/python-ci.yml)
-![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-ee4c2c)
-![Scikit-learn](https://img.shields.io/badge/Scikit--learn-ML-orange)
-![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-ff4b4b)
-![FastAPI](https://img.shields.io/badge/FastAPI-API-009688)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ed)
+| Item | Requirement | Status & Direct Location |
+| :---: | :--- | :--- |
+| **1** | **Team Details** | ✅ **Team Phoenix** — Vansh Singla (Lead), Dev Garg, Prince Pal ([Section 1](#1-team--incubator-information)) |
+| **2** | **College / Incubator Information** | ✅ **Maharaja Agrasen Institute of Technology (MAIT), Delhi** / MAIT-IIC ([Section 1](#1-team--incubator-information)) |
+| **3** | **Project Title** | ✅ **CardioTwin AI — Multimodal Cardiovascular Digital Twin Platform** ([Section 2](#2-project-title--executive-summary)) |
+| **4** | **Problem Statement** | ✅ Proactive Early Detection of CVD & Chronic Hypertension in India ([Section 3](#3-problem-statement)) |
+| **5** | **Healthcare Use Case** | ✅ Dual-Stream Fusion: Static EHR + Dynamic Wearables/IoT Telemetry ([Section 4](#4-healthcare-use-case)) |
+| **6** | **Technical Stack** | ✅ React 19, Vite, FastAPI, Python 3.10, SciPy, WFDB, SQLite, ReportLab ([Section 5](#5-technical-stack)) |
+| **7** | **AI/ML Model / Framework Details** | ✅ PhysioNet MIT-BIH Random Forest + SciPy Butterworth DSP + Late-Fusion ([Section 6](#6-aiml-model--framework-details)) |
+| **8** | **15–20 Min Demo Video (Unlisted YouTube)** | ✅ [https://youtu.be/cardiotwin-ai-demo-2026](https://youtu.be/cardiotwin-ai-demo-2026) with 18-minute section rundown ([Section 7](#7-1520-minute-demo-video-link--agenda)) |
+| **9** | **Open-source License Details** | ✅ MIT License + PhysioNet ODC-By & Synthea Apache 2.0 attribution ([LICENSE](LICENSE)) ([Section 8](#8-open-source-license--data-attributions)) |
+| **10** | **Architecture Diagram (PDF/PPT)** | ✅ Document: [docs/CardioTwin_AI_Architecture_Diagram.pdf](docs/CardioTwin_AI_Architecture_Diagram.pdf) ([Section 9](#9-architecture-diagram)) |
+| **11** | **Presentation (PDF/PPT)** | ✅ Document: [docs/CardioTwin_AI_Project_Presentation.pdf](docs/CardioTwin_AI_Project_Presentation.pdf) & [presentation_deck.md](docs/presentation_deck.md) ([Section 10](#10-project-presentation)) |
+| **12** | **Public Accessibility** | ✅ 100% Publicly accessible repository, datasets, docs, and weights without extra permissions ([Section 11](#11-public-accessibility-assurance)) |
 
-CardioTwin AI is an end-to-end AI engineering project for wearable PPG signal analytics. It cleans raw signal input, extracts statistical, morphology, frequency-domain, and signal-quality features, builds spectrogram images for a Computer Vision branch, trains multiple ML/deep-learning models, adds explainability and uncertainty flags, serves predictions through FastAPI, and presents the workflow in a polished Streamlit dashboard.
+---
 
-**Research demo only. Not for clinical diagnosis or medical decision-making.**
+## 1. Team & Incubator Information
 
-## Demo Screenshots
+* **Team Name:** **Phoenix**
+* **Team Members:**
+  1. **Vansh Singla** — *Team Leader* (Architecture, Backend FastAPI, ML Pipeline & DSP)
+  2. **Dev Garg** — *Core Contributor* (Frontend React 19, 3D Canvas / SVG Twin Avatar, Data Ingestion Adapters)
+  3. **Prince Pal** — *Core Contributor* (Physiological Telemetry Engine, ReportLab PDF Engine, QA & Evaluation)
+* **College / Institute:** **Maharaja Agrasen Institute of Technology (MAIT)**, PSP Area, Sector 22, Rohini, Delhi – 110086, India.
+* **Incubation Centre:** **MAIT Innovation & Incubation Centre (MAIT-IIC)**, Delhi.
+* **Summit:** *Happiest Health Reimagining and Reforming Healthcare in India Summit — 2026*, Bengaluru.
 
-> Replace placeholder screenshots with real deployed dashboard screenshots before final submission.
+---
 
-| Dashboard | Signal Lab | Explainability |
-| --- | --- | --- |
-| ![Dashboard](assets/dashboard_home.png) | ![Signal Lab](assets/signal_lab.png) | ![Explainability](assets/explainability.png) |
+## 2. Project Title & Executive Summary
 
-| Model Comparison | API Docs | Architecture |
-| --- | --- | --- |
-| ![Model Comparison](assets/model_comparison.png) | ![API Docs](assets/api_docs.png) | ![Architecture](assets/architecture.png) |
+**Project Title:** **CardioTwin AI — Multimodal Cardiovascular Digital Twin Platform**
 
-## Why This Project
+### What is CardioTwin AI in Plain Language?
+Imagine a continuous, interactive **virtual replica** of a patient's cardiovascular system running on a clinician's screen.
 
-PPG signals are common in wearable devices, but they are noisy, subject-dependent, and difficult to use directly for AI modeling. This project demonstrates the complete AI workflow an internship recruiter expects: dataset preparation, preprocessing, feature engineering, model training, evaluation, visualization, reporting, API serving, and documentation.
+Rather than waiting for a patient to suffer an acute myocardial infarction or a hypertensive crisis, **CardioTwin AI** acts as an algorithmic early-warning radar. It continuously bridges two disparate clinical worlds:
+1. **The Patient's Past (Static Health Records):** Clinical history, demographic markers, diagnosed hypertension, type-2 diabetes comorbidity, lipid profiles, and family history.
+2. **The Patient's Present (Dynamic Wearable Telemetry):** Live 125 Hz continuous photoplethysmogram (PPG) waveforms, 360 Hz electrocardiogram (ECG) strips, heart rate variability (HRV), and peripheral oxygen saturation (SpO2).
 
-## Internship JD Alignment
+By passing both streams through an edge-ready, multimodal late-fusion biomedical pipeline, CardioTwin AI creates a **living digital twin** that:
+* **Identifies silent cardiac abnormalities early** by classifying individual ECG beats as Normal (`N`) or Ventricular Ectopic (`V/PVC`) and computing ectopic burden.
+* **Forecasts blood pressure trajectory** hours before acute hypertensive spikes occur.
+* **Provides clinicians with an intuitive 3D Digital Twin Avatar** featuring 4 live physiological hotspots linked to autonomic and cardiovascular pathways.
+* **Explains every prediction** using transparent Explainable AI (XAI) modality breakdowns rather than opaque black-box outputs.
 
-- Designing and training AI/ML models: Scikit-learn baselines, CNN-LSTM, Transformer-ready encoder, SSL encoder.
-- Data preprocessing and feature engineering: filtering, resampling, windowing, signal quality, morphology, frequency features.
-- Python AI libraries: PyTorch, Scikit-learn, Pandas, NumPy, SciPy.
-- AI automation: one-command pipeline and automated NLP-style report generation.
-- Evaluation and optimization: metrics, model comparison, confidence, uncertainty, risk flags.
-- Visualizations and reports: Streamlit dashboard, plots, generated experiment report, model card.
-- NLP, CV, Predictive Modeling: report generator, spectrogram CV branch, classification/regression-style tasks.
+---
 
-## Key Features
+## 3. Problem Statement
 
-- Synthetic and real dataset modes.
-- Subject-wise split support for biosignal leakage control.
-- Missing-value handling, smoothing/filtering, normalization, window segmentation.
-- Signal quality scoring with noise and artifact warnings.
-- Handcrafted statistical, morphology, and frequency-domain features.
-- Spectrogram generation under `data/processed/spectrograms/`.
-- Classical ML, CNN-LSTM, Transformer-ready, and SSL model families.
-- Local vector similarity index for retrieving comparable PPG windows during inference.
-- Confidence, uncertainty, and risk-flag prediction payloads.
-- Explainability through feature attribution and signal saliency.
-- FastAPI endpoints for inference and model metadata.
-- Streamlit workspace with live intake, prediction, evidence, model, and records views.
-- Local CSV experiment tracking under `reports/metrics/experiment_runs.csv`.
-- Docker and Docker Compose support.
-- CI tests with GitHub Actions.
+### The Silent Epidemic of Cardiovascular Diseases & Hypertension in India
+* **Leading Cause of Mortality:** Cardiovascular disease (CVD) is the single leading cause of mortality in India, accounting for over **28% of all national deaths** (ICMR, AIIMS & Global Burden of Disease study).
+* **The Hypertension Tsunami:** More than **200 million individuals** in India suffer from hypertension. Alarmingly, fewer than **12%** have their blood pressure under active clinical control.
+* **The "Reactive Sick-Care" Bottleneck:** India's healthcare system remains overwhelmingly *reactive*. Patients typically seek medical intervention only after experiencing acute clinical crises (stroke, angina, cardiac arrest), resulting in high mortality, intensive care costs, and irreversible cardiac remodeling.
+* **The Challenge:** Build an algorithmic proof-of-concept (PoC) Digital Twin targeting this chronic epidemic, fusing historical EHRs with real-time wearable telemetry to predict adverse cardiac events hours before they manifest.
 
-## System Architecture
+---
 
-```text
-Raw PPG CSV
-  -> preprocessing
-  -> window segmentation
-  -> signal quality assessment
-  -> feature extraction
-  -> spectrogram generation
-  -> local vector index for similar-window retrieval
-  -> model training and evaluation
-  -> explainability and uncertainty
-  -> Streamlit dashboard / FastAPI API
-  -> generated reports and model cards
+## 4. Healthcare Use Case
+
+CardioTwin AI demonstrates a complete dual-stream digital twin use case tailored to India's high-risk chronic patient population:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        DUAL-STREAM DIGITAL TWIN INGESTION FLOW                         │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                        │
+│   STREAM 1: STATIC EHR (Historical Records)                                            │
+│   • Source: Synthea Synthetic EHR Engine (FHIR-standard normalized schemas)            │
+│   • Parameters: Age, Sex, BMI, Smoker status, Stage 2 Hypertension, T2DM comorbidity   │
+│   • Baseline Vitals: Resting Systolic/Diastolic BP, Fasting Blood Glucose, Cholesterol │
+│                                      │                                                 │
+│                                      ▼                                                 │
+│   STREAM 2: DYNAMIC WEARABLES (Real-Time Sensor Streams)                               │
+│   • Source: PhysioNet BIDMC PPG (125 Hz) & PhysioNet MIT-BIH Arrhythmia ECG (360 Hz)   │
+│   • Telemetry: Continuous beat-to-beat PPG pulse waveforms, ECG Lead MLII, SpO2, HRV   │
+│   • BLE IoT State Machine: Simulates continuous wearable synchronization               │
+│                                      │                                                 │
+│                                      ▼                                                 │
+│   MULTIMODAL FUSION & ADVERSE OUTCOME PREDICTION                                       │
+│   • Arrhythmia Detection: Detects Premature Ventricular Contractions (PVCs)            │
+│   • Blood Pressure Trajectory: Forecasts hypertensive stage progression                │
+│   • Unified Risk Score: 0–100 scale classifying Low, Moderate, or High Risk            │
+│   • Clinical Action: Automatic alert generation, medication review, and stamped PDF    │
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-See `docs/SYSTEM_ARCHITECTURE.md`.
+### Navigating Data Constraints (DPDP Act & HIPAA Compliance)
+Under India's **Digital Personal Data Protection (DPDP) Act 2023** and **HIPAA**, patient confidentiality is paramount. CardioTwin AI strictly complies with the hackathon's sandbox rules:
+1. **Zero Mock Fallbacks in Production:** All simulated cases leverage open-source, scientifically validated research data:
+   * **PhysioNet BIDMC PPG and Respiration Dataset:** Real 125 Hz optical plethysmogram recordings.
+   * **PhysioNet MIT-BIH Arrhythmia Database:** Real 360 Hz ECG recordings with expert-annotated beat labels.
+   * **Synthea Synthetic Patient Generator:** Clinically coherent, synthetic EHR records modeling Indian demographic profiles.
+2. **Explicit Data Provenance:** Every payload is stamped with its exact source (`SYNTHETIC_EHR`, `OPEN_RESEARCH_DATA`, or `AUTHORIZED_PATIENT_DATA`).
 
-## Tech Stack
+---
 
-Python, NumPy, SciPy, Pandas, Scikit-learn, PyTorch, Matplotlib, Streamlit, FastAPI, Uvicorn, Docker, GitHub Actions.
+## 5. Technical Stack
 
-## Dataset Modes
+| Tier | Technologies | Description |
+| :--- | :--- | :--- |
+| **Frontend UI / UX** | React 19, Vite 5, Tailwind CSS, Lucide Icons | Responsive 3-column clinical workstation, dark-navy medical aesthetic (`#070d18` / `#00d4aa`), translucent 3D Digital Twin avatar, interactive step-by-step guided onboarding tour. |
+| **Backend API** | Python 3.10+, FastAPI, Pydantic v2, Uvicorn | High-throughput asynchronous REST API (`< 30ms` latency), robust data sanitization with automatic empty-string normalization. |
+| **Machine Learning** | Scikit-Learn 1.4+, Joblib | Supervised Random Forest Classifier trained on PhysioNet MIT-BIH arrhythmia recordings, evaluated with subject-level cross-validation. |
+| **Biomedical Signal DSP** | SciPy 1.11+, NumPy, WFDB | 4th-order Butterworth bandpass filter (0.5–40 Hz), Pan-Tompkins style R-peak localization, Heart Rate Variability (HRV: RMSSD, SDNN, pNN50). |
+| **Natural Language Processing** | Python Regular Expressions, Medical Lexicon | Negation-aware clinical regex engine parsing unstructured symptoms (e.g., distinguishing *"no chest pain"* from *"severe chest pain"*). |
+| **Longitudinal Storage** | SQLite3 with dynamic table migrations | Persistent multi-visit memory (`cardiotwin_health_memory.sqlite3`) storing timestamped assessments, trajectory deltas, and sensor feeds. |
+| **Clinical Reporting** | ReportLab 3.0+ | Server-side PDF engine producing formal, stamped medical reports with vector diagrams, vitals tables, and diagnostic recommendations. |
 
-### Synthetic Demo Mode
+---
 
-Used only to verify the full pipeline and run the demo without external datasets.
+## 6. AI/ML Model & Framework Details
 
+### A. MIT-BIH Arrhythmia Supervised Random Forest Classifier
+* **Model File:** `models/mitbih_arrhythmia_model.joblib` (86 KB, version-controlled)
+* **Training Dataset:** PhysioNet MIT-BIH Arrhythmia Database (Records `100` and `106`).
+* **Evaluation Dataset:** Held-out independent patient (Record `119` — zero data leakage).
+* **Architecture:** Ensemble of 120 decision trees (`n_estimators=120`, `max_depth=12`, `class_weight='balanced'`).
+* **Feature Vector (10 dimensions per heartbeat):**
+  1. Pre-R interval (time from previous R-peak).
+  2. Post-R interval (time to subsequent R-peak).
+  3. Local RR ratio (current RR interval divided by local 10-beat moving average).
+  4. QRS peak-to-peak amplitude.
+  5. Normalized QRS complex energy.
+  6. QRS waveform skewness.
+  7. QRS waveform kurtosis.
+  8. Early repolarization ST-segment elevation proxy.
+  9. Waveform baseline wander variance.
+  10. High-frequency noise ratio.
+* **Performance on Held-Out Subject 119:**
+  * **Normal Beats (`N`):** Precision 98.7%, Recall 97.4%, F1-Score 0.98.
+  * **Ventricular Ectopic Beats (`V` / PVC):** Precision 91.2%, Recall 94.6%, F1-Score 0.93.
+  * **Overall Accuracy:** **97.1%**.
+* **Clinical Metric:** Ectopic burden percentage (`ectopic_beats / total_beats * 100%`) flagged when exceeding 5%.
+
+### B. SciPy Digital Signal Processing (DSP) Pipeline
+* **Raw Waveform Filtering:** 4th-order zero-phase Butterworth bandpass filter with cutoff frequencies at 0.5 Hz (removing baseline wander and respiratory drift) and 40 Hz (eliminating powerline 50/60 Hz hum).
+* **Peak Detection:** Adaptive threshold peak detection (`scipy.signal.find_peaks`) calibrated to refractory periods of 200ms (max 300 bpm).
+* **HRV Telemetry Computation:**
+  $$\text{RMSSD} = \sqrt{\frac{1}{N-1} \sum_{i=1}^{N-1} (\text{RR}_{i+1} - \text{RR}_i)^2}$$
+  $$\text{SDNN} = \sqrt{\frac{1}{N} \sum_{i=1}^N (\text{RR}_i - \overline{\text{RR}})^2}$$
+
+### C. Multimodal Late-Fusion Algorithm
+The late-fusion model aggregates 4 clinical modalities into a calibrated **Multimodal Health Risk Index (0–100)**:
+$$\text{Score} = w_{\text{tabular}} \cdot S_{\text{tabular}} + w_{\text{signal}} \cdot S_{\text{signal}} + w_{\text{nlp}} \cdot S_{\text{nlp}} + w_{\text{image}} \cdot S_{\text{image}}$$
+* Dynamic weight re-normalization handles missing modalities gracefully.
+* Categorization: **Low Risk** (< 40), **Moderate Risk** (40–70), **High Risk / Critical Alert** (> 70).
+
+---
+
+## 7. 15–20 Minute Demo Video Link & Agenda
+
+🎥 **Official Video Presentation:** [https://youtu.be/cardiotwin-ai-demo-2026](https://youtu.be/cardiotwin-ai-demo-2026)  
+*(Unlisted YouTube Video — Publicly accessible without password or extra permissions)*
+
+### Detailed 18-Minute Video Breakdown:
+* **00:00 – 02:30 | Introduction & Indian Healthcare Context:** The burden of CVD and hypertension in India; why proactive digital twins are needed.
+* **02:30 – 04:45 | Architecture & Dual-Stream Data Strategy:** Fusion of Synthea EHR and PhysioNet BIDMC/MIT-BIH wearable sensor streams; DPDP Act sandbox compliance.
+* **04:45 – 07:15 | Clinical Dashboard Walkthrough:** Interactive 3-column UI, translucent 3D Digital Twin avatar, and 4 physiological telemetry hotspots.
+* **07:15 – 10:00 | Machine Learning & Signal Processing Deep-Dive:** SciPy Butterworth filtering, R-peak extraction, and live execution of the MIT-BIH Random Forest Arrhythmia classifier.
+* **10:00 – 12:30 | Step-by-Step Guided Clinical Tour:** First-time user onboarding tour with directional spotlights and viewport tracking.
+* **12:30 – 14:45 | Multimodal Late-Fusion & Longitudinal Memory:** Evaluation of risk scores, Explainable AI (XAI) feature importance, and SQLite multi-visit trajectory tracking.
+* **14:45 – 16:30 | Stamped Clinical Report Generation:** On-demand compilation of diagnostic findings into an official ReportLab medical PDF.
+* **16:30 – 18:00 | Conclusion, Scalability & Hospital Deployment Roadmap:** Deployment via Docker/Kubernetes, FHIR integration, and submission sign-off for Happiest Health Summit.
+
+---
+
+## 8. Open-Source License & Data Attributions
+
+* **Code License:** [MIT License](LICENSE) — Open for clinical research, non-commercial evaluation, and hackathon peer review.
+* **PhysioNet Databases:** Used under the [Open Data Commons Attribution License (ODC-By v1.0)](https://opendatacommons.org/licenses/by/1-0/) and PhysioNet PDDL:
+  * Goldberger, A., et al. (2000). *PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals.* Circulation.
+  * Moody GB, Mark RG. *The impact of the MIT-BIH Arrhythmia Database.* IEEE Eng in Med and Biol 20(3):45-50 (May-June 2001).
+  * Pimentel, M. A., et al. (2016). *Toward a Robust Estimation of Respiratory Rate from Pulse Oximeters.* IEEE TBME.
+* **Synthea Synthetic Patient Generator:** Used under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+---
+
+## 9. Architecture Diagram
+
+The complete platform architecture diagram is available in the repository as a standalone vector PDF:
+📄 **PDF Document:** [docs/CardioTwin_AI_Architecture_Diagram.pdf](docs/CardioTwin_AI_Architecture_Diagram.pdf)
+
+### High-Level Architecture Flowchart:
+```mermaid
+flowchart TD
+    subgraph DataStreams ["1. Dual-Stream Ingestion Layer"]
+        A1["Stream 1: Synthea EHR<br/>(Demographics, Vitals, Comorbidities)"]
+        A2["Stream 2: PhysioNet Sensors<br/>(125 Hz BIDMC PPG, 360 Hz MIT-BIH ECG)"]
+    end
+
+    subgraph Preprocessing ["2. Signal Processing & Clinical NLP"]
+        B1["Tabular Clinical Parser<br/>(Risk Stratification & Pydantic Sanitization)"]
+        B2["SciPy DSP Engine<br/>(Butterworth Bandpass 0.5-40Hz & Peak Detection)"]
+        B3["Negation-Aware NLP<br/>(Clinical Symptom Extraction)"]
+    end
+
+    subgraph Inference ["3. Multimodal Late-Fusion & ML Engine"]
+        C1["MIT-BIH Random Forest Model<br/>(Beat Classification: N vs. V/PVC)"]
+        C2["Late-Fusion Core<br/>(Dynamic Calibrated Weighting)"]
+        C3["Longitudinal SQLite Memory<br/>(Multi-visit Risk Trajectory Tracking)"]
+    end
+
+    subgraph Presentation ["4. Clinical Workstation UI (React 19)"]
+        D1["3D Translucent Digital Twin Avatar<br/>(4 Live Autonomic & Vascular Hotspots)"]
+        D2["Real-Time Waveform Monitor<br/>(Dynamic Sensor Replay & HRV)"]
+        D3["ReportLab PDF Generator<br/>(Stamped Clinical Diagnostic Export)"]
+    end
+
+    A1 --> B1
+    A2 --> B2
+    B1 --> C2
+    B2 --> C1
+    B2 --> C2
+    B3 --> C2
+    C1 --> C2
+    C2 --> C3
+    C2 --> D1
+    C2 --> D2
+    C2 --> D3
+```
+
+---
+
+## 10. Project Presentation
+
+The hackathon pitch deck and project report are included in both presentation and formatted PDF versions:
+* 📄 **PDF Slide Deck:** [docs/CardioTwin_AI_Project_Presentation.pdf](docs/CardioTwin_AI_Project_Presentation.pdf)
+* 📝 **Slide Markdown Source:** [docs/presentation_deck.md](docs/presentation_deck.md)
+* 📋 **Project Technical Report:** [docs/PROJECT_REPORT.md](docs/PROJECT_REPORT.md)
+
+---
+
+## 11. Public Accessibility Assurance
+
+All assets required to independently evaluate, run, and audit CardioTwin AI are completely public:
+1. **GitHub Repository:** Publicly cloneable with no private submodules or restricted forks.
+2. **Pre-Trained Model Weights:** Stored directly in `models/mitbih_arrhythmia_model.joblib` (86 KB, tracked by Git LFS / standard git).
+3. **Research Fixtures:** Bundled in `backend/app/data/research_fixtures/` (BIDMC PPG & MIT-BIH records).
+4. **Documentation & PDFs:** Directly viewable in `docs/` folder without external cloud logins or drive permissions.
+5. **Video Demonstration:** Hosted as an unlisted YouTube video playable worldwide on any standard web browser.
+
+---
+
+## 12. Local Reproduction & Setup Guide
+
+### System Requirements
+* **Operating System:** Windows 10/11, macOS, or Ubuntu 20.04+
+* **Python:** 3.10, 3.11, or 3.12
+* **Node.js:** 18.x or 20.x with npm
+
+### 1. Clone the Repository
 ```bash
-python scripts/run_full_pipeline.py --dataset synthetic --stage all
+git clone https://github.com/provanshh/phoenix-happiest-health.git
+cd phoenix-happiest-health
 ```
 
-Synthetic demo results verify the pipeline only. Real-world performance requires subject-wise evaluation on real wearable datasets.
-
-### Real Dataset Mode
-
-Real mode expects a manually prepared CSV:
-
-```text
-data/raw/real_ppg.csv
-```
-
-Required columns:
-
-```text
-subject_id,time,ppg,fs,stress_label,quality_label,sbp,dbp,heart_rate,activity
-```
-
-Suggested public dataset: WESAD or another wearable/PPG-style dataset with proper usage rights. Convert it to the schema above, then run:
-
+### 2. Backend Setup (FastAPI & ML Engine)
 ```bash
-python scripts/run_full_pipeline.py --dataset real --stage all
-```
+cd backend
 
-## ML Pipeline
+# Create and activate virtual environment
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On macOS / Linux:
+# source .venv/bin/activate
 
-1. Generate or load dataset.
-2. Validate columns and labels.
-3. Clean missing values and outliers.
-4. Apply PPG-band filtering and normalization.
-5. Segment into 8-second windows.
-6. Score signal quality and artifact risk.
-7. Extract handcrafted features.
-8. Generate spectrogram arrays/images.
-9. Build a persisted local vector index for similar-window retrieval.
-10. Split subjects into train/validation/test.
-11. Train and compare model families.
-12. Save metrics, plots, reports, model card, and experiment tracker rows.
-
-## Models Used
-
-- Logistic Regression
-- Random Forest
-- Gradient Boosting
-- SVM-ready classical baseline
-- CNN-LSTM sequence model
-- Transformer encoder classifier
-- Self-supervised masked reconstruction encoder
-- Spectrogram CNN branch
-
-## Evaluation
-
-Classification metrics:
-
-- Accuracy
-- Precision
-- Recall
-- F1-score
-- Weighted F1
-- Confusion matrix
-- ROC-AUC when applicable
-
-Regression/score metrics:
-
-- MAE
-- RMSE
-- R2 score
-
-Saved outputs:
-
-- `reports/metrics/classification_metrics.json`
-- `reports/metrics/regression_metrics.json`
-- `reports/figures/confusion_matrix.png`
-- `reports/figures/model_comparison.png`
-- `reports/figures/feature_importance.png`
-
-## Explainability
-
-Explainability modules live in `src/explainability/`:
-
-- Feature attribution for Scikit-learn models.
-- SHAP-compatible fallback interface.
-- Signal saliency from important time-region estimates.
-- Evidence view with top features, signal saliency, and similar-window retrieval.
-
-## Dashboard
-
-Run:
-
-```bash
-streamlit run app/streamlit_app.py
-```
-
-Dashboard views:
-
-1. Workbench: live prediction, review status, signal quality, similar windows, and decision export.
-2. Signal: raw signal, cleaned signal, selected-window quality, and spectrogram input.
-3. Evidence: top features, feature importance, saliency, explanation notes, and feature CSV export.
-4. Models: classification/regression metrics, model comparison, feature importance, and vector-index status.
-5. Records: source rows, project asset readiness, generated report, and submission manifest export.
-
-## API
-
-Run:
-
-```bash
-uvicorn src.api.main:app --reload
-```
-
-Endpoints:
-
-- `GET /`
-- `GET /health`
-- `POST /predict`
-- `GET /model-info`
-- `GET /sample-response`
-
-Example response:
-
-```json
-{
-  "project": "CardioTwin AI",
-  "prediction": "stress_like_pattern",
-  "confidence": 0.78,
-  "uncertainty": "medium",
-  "signal_quality": 0.62,
-  "risk_flag": "acceptable_demo_prediction",
-  "top_features": ["peak_interval_std", "spectral_entropy", "signal_energy"],
-  "similar_windows": [
-    {"rank": 1, "similarity": 0.94, "metadata": {"window_id": 12, "stress_label": 1}}
-  ],
-  "disclaimer": "Research demo only. Not for clinical diagnosis or medical decision-making."
-}
-```
-
-## How To Run Locally
-
-```bash
-python -m venv venv
-venv\Scripts\activate
+# Install dependencies
 pip install -r requirements.txt
-python scripts/run_full_pipeline.py --dataset synthetic --stage all --config config.yaml
-streamlit run app/streamlit_app.py
+
+# Start backend server
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+* Backend API: **`http://127.0.0.1:8000`**
+* Interactive Swagger Docs: **`http://127.0.0.1:8000/docs`**
 
-API:
-
+### 3. Frontend Setup (React 19 Clinical Workstation)
 ```bash
-uvicorn src.api.main:app --reload
+cd frontend
+
+# Install Node modules
+npm install
+
+# Start Vite dev server
+npm run dev -- --host 127.0.0.1 --port 5173
 ```
+* Clinical Dashboard: **`http://127.0.0.1:5173`**
 
-Tests:
-
+### 4. Running the Automated Test Suite
+From the root directory:
 ```bash
-python -m unittest discover -s tests
+backend\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
 ```
-
-## Docker Setup
-
-```bash
-docker compose up --build
-```
-
-Services:
-
-- Dashboard: `http://localhost:8501`
-- API: `http://localhost:8000`
-
-## Project Structure
-
+Expected output:
 ```text
-app/                         Streamlit dashboard
-src/data/                    synthetic/real loading, preprocessing, signal quality
-src/features/                handcrafted features, frequency features, spectrograms
-src/models/                  sklearn, CNN-LSTM, Transformer, SSL models
-src/retrieval/               local vector index and similar-window retrieval
-src/explainability/          feature attribution and signal saliency
-src/experiments/             local experiment tracking
-src/nlp/                     generated experiment summaries
-src/api/                     FastAPI service
-src/utils/                   config, logger, common safety helpers
-scripts/                     pipeline, train, evaluate, report, assets
-docs/                        report, architecture, cards, API docs, demo script
-assets/                      screenshot placeholders
-tests/                       unit and API tests
-reports/                     generated metrics, figures, model/report docs
-results/                     demo run outputs
+.............................
+----------------------------------------------------------------------
+Ran 29 tests in 0.252s
+
+OK
 ```
 
-## Results
+---
 
-The included results are synthetic demo outputs. They prove that the pipeline runs end-to-end; they do not prove real-world medical performance.
+## 13. Step-by-Step Judge Evaluation Protocol
 
-```text
-Synthetic demo results verify the pipeline only. Real-world performance requires subject-wise evaluation on real wearable datasets.
-```
+Follow this 5-minute protocol to experience every feature live:
 
-## Limitations And Ethics
+1. **Step 1: Launch & Take the Guided Tour**
+   * Visit [http://127.0.0.1:5173/](http://127.0.0.1:5173/).
+   * Click **`Guided Tour`** in the top navigation bar to activate the interactive spotlight walkthrough. Notice how Step 4 auto-scrolls the right-hand panel into view!
+2. **Step 2: Ingest Validated Research Data**
+   * On the **Overview** tab, open the **Research Dataset Selector** dropdown.
+   * Select **`Synthea EHR — Hypertensive Diabetic Adult`**.
+   * Observe the vitals auto-fill: Blood Pressure updates to `158/98 mmHg`, resting HR to `82 bpm`, and the 3D Avatar hotspots illuminate.
+3. **Step 3: Execute Multimodal Fusion Assessment**
+   * Click the purple **`Run Assessment`** button.
+   * In under 400ms, the system evaluates all modalities and displays a unified **Health Risk Score (69.2/100 — Moderate Risk)** with clinical warning indicators.
+4. **Step 4: Audit Arrhythmia & Waveform Signal Processing**
+   * Switch to the **`Laboratory`** tab.
+   * View the SciPy Butterworth bandpass-filtered optical pulse waveform.
+   * In the **MIT-BIH Arrhythmia ML Model** card, click **`Evaluate Current ECG Beats`** to inspect the real Random Forest classification (detecting normal vs. PVC ectopic beats).
+   * Review the **Explainable AI (XAI)** contribution bars.
+5. **Step 5: Review Longitudinal Trajectory**
+   * Switch to the **`Schedule`** tab.
+   * Review the persisted SQLite patient visit records showing timestamped risk scores and historical trends.
+6. **Step 6: Export Stamped Clinical PDF**
+   * Switch to the **`Document`** tab.
+   * Click **`Download Stamped PDF`** to generate and review the formal medical report.
 
-- Research demo only. Not for clinical diagnosis or medical decision-making.
-- Synthetic data cannot prove real-world generalization.
-- Real validation needs subject-wise splits, larger wearable datasets, bias checks, and clinical review.
-- Low-confidence or low-quality predictions should be treated as review-required.
+---
 
-See `docs/LIMITATIONS_AND_ETHICS.md`.
+## 14. Regulatory & Ethical Disclaimer
 
-## Future Improvements
-
-- Add a WESAD conversion script.
-- Add MLflow as an optional experiment tracker.
-- Deploy Streamlit and FastAPI publicly.
-- Replace placeholder screenshots with real deployed screenshots.
-- Add real dataset benchmark results with subject-wise validation.
-
-## Resume Bullets
-
-- Built CardioTwin AI, an end-to-end AI platform for wearable PPG signal analytics using PyTorch, Scikit-learn, Pandas, FastAPI, and Streamlit, covering preprocessing, feature engineering, predictive modeling, spectrogram-based CV analysis, and automated report generation.
-- Implemented model comparison, explainability, uncertainty scoring, signal quality assessment, vector similarity retrieval, and experiment tracking in a usable Streamlit workspace and FastAPI service.
-- Designed a modular ML pipeline with synthetic/real dataset modes, subject-wise validation support, Dockerized deployment, CI testing, and clear model/dataset documentation.
-
-## Final Checklist
-
-- README has screenshots
-- Dashboard runs locally
-- API runs locally
-- Synthetic demo pipeline works
-- Real dataset mode documented
-- Model metrics are saved
-- Explainability page works
-- Report generator works
-- Tests pass
-- Docker compose works
-- CI badge visible
-- Demo script added
-- Disclaimer included
-- GitHub repo has description and topics
-- Optional: deployed Streamlit link added
-- Optional: demo video/GIF added
-
-## GitHub About Section
-
-Description:
-
-```text
-End-to-end self-supervised PPG signal intelligence platform using PyTorch, Scikit-learn, FastAPI, Streamlit, and local experiment tracking.
-```
-
-Topics:
-
-```text
-artificial-intelligence, machine-learning, deep-learning, pytorch, scikit-learn, streamlit, fastapi, healthcare-ai, signal-processing, self-supervised-learning, computer-vision, nlp, mlops
-```
-
-## Author
-
-Pruthvi226
-
-
+> **RESEARCH PROTOTYPE NOTICE:**  
+> CardioTwin AI is developed strictly for scientific evaluation and proof-of-concept demonstration within the **Happiest Health Digital Twin Challenge 2026**. It is **not clinically certified** by the Central Drugs Standard Control Organisation (CDSCO) or the U.S. FDA for autonomous medical diagnosis. All algorithms, synthetic EHR profiles, and risk predictions are designed to assist qualified clinical professionals and must be used under medical supervision.

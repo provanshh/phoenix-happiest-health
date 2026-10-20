@@ -14,7 +14,9 @@ tmp*/
 # Local/demo runtime outputs
 /data/
 /Datasets/
-/models/
+/models/*
+!/models/mitbih_arrhythmia_model.joblib
+!/models/mitbih_arrhythmia_evaluation.json
 /logs/
 *.log
 *.tmp

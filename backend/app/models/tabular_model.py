@@ -1,9 +1,10 @@
-"""Structured patient/vitals risk scoring."""
+"""Structured patient/vitals risk scoring with range validation and provenance."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from ..data_ingestion.provenance import ProvenanceType, make_provenance
 from ..services.feature_extraction import bmi_stage, bp_stage, contribution_dict, score_band, warning
 from ..utils.config import clamp
 from ..utils.validators import as_bool, as_float, percentage
@@ -60,7 +61,23 @@ def _safety_floor(systolic: float, diastolic: float, spo2: float) -> tuple[float
     return 0.0, ""
 
 
-def analyze_tabular(data: dict[str, Any]) -> dict[str, Any]:
+def analyze_tabular(data: dict[str, Any] | None, provenance: dict[str, Any] | None = None) -> dict[str, Any]:
+    if not data or not any(_provided(data, field) for field in EXPECTED_FIELDS):
+        return {
+            "available": False,
+            "status": "no_vitals_provided",
+            "error": "No structured patient vitals were provided.",
+            "risk_score": 0.0,
+            "raw_risk_score": 0.0,
+            "confidence_score": 0.0,
+            "risk_category": "No Data",
+            "bp_trend_prediction": "Not available",
+            "vitals_summary": {},
+            "feature_contributions": {},
+            "warning_flags": [],
+            "provenance": None,
+        }
+
     age = as_float(data.get("age"), 40)
     height_cm = as_float(data.get("height"), 0)
     weight_kg = as_float(data.get("weight"), 0)
@@ -74,6 +91,17 @@ def analyze_tabular(data: dict[str, Any]) -> dict[str, Any]:
     bmi = as_float(data.get("bmi"), 0)
     if bmi <= 0 and height_cm > 0 and weight_kg > 0:
         bmi = weight_kg / ((height_cm / 100.0) ** 2)
+
+    # Range validations & plausibility checks
+    range_warnings = []
+    if heart_rate < 35 or heart_rate > 220:
+        range_warnings.append(warning("Suspect Heart Rate Value", "medium", f"Recorded HR ({heart_rate:.0f} bpm) is outside typical resting physiological ranges."))
+    if systolic < 60 or systolic > 260:
+        range_warnings.append(warning("Suspect Systolic BP", "medium", f"Recorded SBP ({systolic:.0f} mmHg) requires confirmation."))
+    if diastolic < 40 or diastolic > 160:
+        range_warnings.append(warning("Suspect Diastolic BP", "medium", f"Recorded DBP ({diastolic:.0f} mmHg) requires confirmation."))
+    if spo2 < 70 or spo2 > 100:
+        range_warnings.append(warning("Suspect SpO2 Value", "medium", f"Recorded SpO2 ({spo2:.0f}%) is outside typical sensor range."))
 
     scores = {
         "age": 0 if age < 45 else min(18, (age - 40) * 0.55),
@@ -100,15 +128,15 @@ def analyze_tabular(data: dict[str, Any]) -> dict[str, Any]:
     floor, floor_reason = _safety_floor(systolic, diastolic, spo2)
     risk_score = clamp(max(raw_risk_score, floor))
 
-    flags = []
+    flags = list(range_warnings)
     if systolic > 180 or diastolic > 120:
-        flags.append(warning("Very high blood pressure", "emergency", f"Submitted BP is {systolic:.0f}/{diastolic:.0f} mmHg."))
+        flags.append(warning("Very high blood pressure", "emergency", f"Submitted BP is {systolic:.0f}/{diastolic:.0f} mmHg (Crisis range)."))
     elif systolic >= 140 or diastolic >= 90:
-        flags.append(warning("Elevated blood pressure", "high", f"Submitted BP is {systolic:.0f}/{diastolic:.0f} mmHg."))
+        flags.append(warning("Elevated blood pressure", "high", f"Submitted BP is {systolic:.0f}/{diastolic:.0f} mmHg (Stage 2 range)."))
     elif systolic >= 130 or diastolic >= 80:
-        flags.append(warning("Borderline blood pressure", "medium", f"Submitted BP is {systolic:.0f}/{diastolic:.0f} mmHg."))
+        flags.append(warning("Borderline blood pressure", "medium", f"Submitted BP is {systolic:.0f}/{diastolic:.0f} mmHg (Stage 1 range)."))
     if spo2 < 90:
-        flags.append(warning("Low oxygen saturation", "emergency", f"SpO2 is {spo2:.0f}%."))
+        flags.append(warning("Low oxygen saturation", "emergency", f"SpO2 is {spo2:.0f}%. Urgent clinical review advised."))
     elif spo2 < 94:
         flags.append(warning("Low oxygen saturation", "high", f"SpO2 is {spo2:.0f}%."))
     if sleep_hours < 5:
@@ -121,48 +149,42 @@ def analyze_tabular(data: dict[str, Any]) -> dict[str, Any]:
     missing_critical = [field for field in critical_fields if not _provided(data, field)]
     confidence = clamp(55.0 + completeness * 35.0 - len(missing_critical) * 6.0)
 
+    prov = provenance or make_provenance(
+        ProvenanceType.AUTHORIZED_PATIENT_DATA,
+        "User Entered Vitals",
+        "active_session",
+        "User Provided",
+        units_map={"systolic_bp": "mmHg", "diastolic_bp": "mmHg", "heart_rate": "bpm", "spo2": "%", "bmi": "kg/m^2"},
+        limitations=["Self-reported vitals are unverified by clinical devices."],
+    ).to_dict()
+
     return {
+        "available": True,
+        "status": "processed",
         "risk_score": percentage(risk_score),
         "raw_risk_score": percentage(raw_risk_score),
         "risk_category": score_band(risk_score),
         "bp_trend_prediction": bp_stage(systolic, diastolic),
         "vitals_summary": {
             "age": age,
-            "gender": data.get("gender", "not provided"),
+            "gender": data.get("gender", "Unspecified"),
+            "bmi": round(bmi, 1) if bmi else "unknown",
+            "bmi_stage": bmi_stage(bmi),
             "heart_rate": heart_rate,
             "systolic_bp": systolic,
             "diastolic_bp": diastolic,
+            "bp_stage": bp_stage(systolic, diastolic),
             "spo2": spo2,
             "sleep_hours": sleep_hours,
             "activity_level": activity,
-            "bmi": round(bmi, 1) if bmi else None,
-            "bmi_category": bmi_stage(bmi),
+            "risk_factor_count": factor_count,
         },
-        "feature_scores": {name: round(value, 2) for name, value in scores.items()},
-        "feature_contributions": contribution_dict(scores),
-        "summary": (
-            f"BP is in the {bp_stage(systolic, diastolic).lower()}, BMI is {bmi_stage(bmi).lower()}, "
-            f"and reported activity is {activity.lower()}."
-        ),
+        "feature_contributions": contribution_dict({key: max(0.0, value) for key, value in scores.items()}),
+        "scores": {name: round(value, 2) for name, value in scores.items()},
         "warning_flags": flags,
-        "bmi": round(bmi, 1) if bmi else None,
-        "tabular_risk_score": percentage(risk_score),
-        "risk_factors": [flag["label"] for flag in flags],
-        "protective_factors": [
-            item for item in [
-                "healthy SpO2" if spo2 >= 96 else "",
-                "adequate sleep" if sleep_hours >= 7 else "",
-                "active lifestyle" if activity.lower() in {"high", "active"} else "",
-            ] if item
-        ],
-        "explanation": (
-            f"Tabular risk is driven by {bp_stage(systolic, diastolic).lower()}, "
-            f"BMI {round(bmi, 1) if bmi else 'unknown'}, sleep {sleep_hours:.1f} hours, "
-            f"and {factor_count} reported risk factor(s)."
-        ),
-        "input_completeness": round(completeness, 3),
-        "missing_critical_fields": missing_critical,
-        "safety_floor_applied": risk_score > raw_risk_score,
-        "safety_floor_reason": floor_reason,
         "confidence_score": percentage(confidence),
+        "missing_critical_fields": missing_critical,
+        "input_completeness": round(completeness, 2),
+        "scoring_method": "clinical_guideline_heuristics",
+        "provenance": prov,
     }

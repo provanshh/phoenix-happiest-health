@@ -1,0 +1,30 @@
+{
+  "record_id": "synthea_patient_hypertensive",
+  "source": "Synthea v3.0.0 Synthetic Patient Cohort",
+  "is_synthetic": true,
+  "patient": {
+    "age": 63,
+    "gender": "Male",
+    "height": 175.0,
+    "weight": 94.0,
+    "heart_rate": 86.0,
+    "systolic_bp": 158.0,
+    "diastolic_bp": 98.0,
+    "spo2": 95.0,
+    "sleep_hours": 5.2,
+    "activity_level": "low",
+    "smoking_status": true,
+    "diabetes_history": true,
+    "hypertension_history": true
+  },
+  "conditions": [
+    "Essential hypertension",
+    "Type 2 diabetes mellitus",
+    "Hyperlipidemia"
+  ],
+  "observations": {
+    "total_cholesterol_mg_dl": 240.0,
+    "ldl_mg_dl": 155.0,
+    "fasting_glucose_mg_dl": 142.0
+  }
+}

@@ -1,4 +1,4 @@
-"""PPG signal analysis, feature extraction, and BP trend estimation."""
+"""PPG signal analysis, feature extraction, and signal-quality assessment."""
 
 from __future__ import annotations
 
@@ -7,14 +7,15 @@ from typing import Any
 
 import numpy as np
 
+from ..data_ingestion.provenance import ProvenanceType, make_provenance
 from ..services.explanation_service import signal_quality_explanation
-from ..services.preprocessing import chart_points, clean_ppg_signal, dataframe_to_signal, demo_ppg_signal, read_csv_bytes
+from ..services.preprocessing import chart_points, clean_ppg_signal, dataframe_to_signal, read_csv_bytes
 from ..utils.config import clamp, risk_category
 from ..utils.validators import percentage
 
 try:
     from scipy.signal import find_peaks
-except Exception:  # pragma: no cover - scipy is preferred but not mandatory for demo mode
+except Exception:  # pragma: no cover
     find_peaks = None
 
 
@@ -67,11 +68,11 @@ def _estimate_bp(heart_rate: float, quality_score: float, hrv_sdnn: float) -> di
     systolic = clamp(116.0 + stress_term + quality_term + hrv_term, 90, 190)
     diastolic = clamp(74.0 + stress_term * 0.45 + quality_term * 0.35 + hrv_term * 0.2, 55, 120)
     if systolic >= 140 or diastolic >= 90:
-        trend = "Elevated BP trend predicted"
+        trend = "Elevated BP trend indicator"
     elif systolic >= 130 or diastolic >= 80:
-        trend = "Borderline BP trend predicted"
+        trend = "Borderline BP trend indicator"
     else:
-        trend = "Stable BP trend predicted"
+        trend = "Stable BP trend indicator"
     if quality_score >= 80:
         confidence = "higher"
     elif quality_score >= 55:
@@ -82,13 +83,19 @@ def _estimate_bp(heart_rate: float, quality_score: float, hrv_sdnn: float) -> di
         "systolic": round(systolic, 1),
         "diastolic": round(diastolic, 1),
         "trend": trend,
-        "method": "rule_based_regression_fallback",
+        "method": "experimental_heuristic_approximation",
         "confidence": confidence,
-        "note": "Educational approximation; not a clinical BP measurement.",
+        "warning": "Experimental rule-based approximation only. Not an ML model and NOT a clinical blood pressure measurement.",
+        "note": "Reference BP measurements required for genuine calibration.",
     }
 
 
-def analyze_ppg_signal(signal: np.ndarray, fs: float = 64.0, timestamps: np.ndarray | None = None) -> dict[str, Any]:
+def analyze_ppg_signal(
+    signal: np.ndarray,
+    fs: float = 64.0,
+    timestamps: np.ndarray | None = None,
+    provenance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     raw = np.asarray(signal, dtype=float)
     if raw.size < 5:
         raise ValueError("At least five PPG samples are required for signal analysis.")
@@ -118,6 +125,10 @@ def analyze_ppg_signal(signal: np.ndarray, fs: float = 64.0, timestamps: np.ndar
         peak_interval_mean = 0.0
         interval_cv = 0.0
 
+    hrv_valid = duration_seconds >= 30.0 and len(peaks) >= 15
+    hrv_reported = round(hrv_sdnn, 2) if hrv_valid else None
+    hrv_status = "valid" if hrv_valid else "insufficient_duration_or_peaks_for_hrv"
+
     artifact_ratio = _artifact_ratio(raw)
     noise_level = float(np.std(raw - np.median(raw)) / (np.ptp(raw) + 1e-6))
     peak_density_penalty = _heart_rate_penalty(heart_rate)
@@ -145,13 +156,15 @@ def analyze_ppg_signal(signal: np.ndarray, fs: float = 64.0, timestamps: np.ndar
     signal_risk = clamp(sum(risk_parts.values()))
     warnings = []
     if quality_score < 55:
-        warnings.append({"label": "Noisy PPG signal", "severity": "medium", "detail": "Motion artifacts may reduce reliability."})
+        warnings.append({"label": "Noisy PPG signal", "severity": "medium", "detail": "Motion artifacts or noise detected. May reduce analysis reliability."})
     if rejected_interval_ratio > 0.35:
-        warnings.append({"label": "Unstable PPG peak pattern", "severity": "medium", "detail": "Many detected peak intervals were physiologically implausible."})
+        warnings.append({"label": "Unstable PPG peak pattern", "severity": "medium", "detail": "Multiple detected peak intervals were physiologically implausible."})
     if heart_rate > 120 or heart_rate < 45:
         warnings.append({"label": "Heart rate outlier", "severity": "high", "detail": f"Estimated heart rate is {heart_rate:.1f} bpm."})
 
     return {
+        "available": True,
+        "status": "processed",
         "risk_score": percentage(signal_risk),
         "risk_category": risk_category(signal_risk),
         "quality_score": percentage(quality_score),
@@ -165,7 +178,8 @@ def analyze_ppg_signal(signal: np.ndarray, fs: float = 64.0, timestamps: np.ndar
             "duration_seconds": round(duration_seconds, 2),
             "peak_count": int(len(peaks)),
             "peak_interval_mean": round(peak_interval_mean, 4),
-            "hrv_sdnn_ms": round(hrv_sdnn, 2),
+            "hrv_sdnn_ms": hrv_reported,
+            "hrv_status": hrv_status,
             "interval_cv": round(interval_cv, 4),
             "rejected_interval_ratio": round(rejected_interval_ratio, 4),
             "noise_level": round(noise_level, 4),
@@ -182,24 +196,41 @@ def analyze_ppg_signal(signal: np.ndarray, fs: float = 64.0, timestamps: np.ndar
         "estimated_diastolic_bp": bp_prediction["diastolic"],
         "signal_risk_score": percentage(signal_risk),
         "confidence_score": percentage(max(30.0, min(92.0, quality_score - rejected_interval_ratio * 12.0))),
+        "provenance": provenance or make_provenance(
+            ProvenanceType.AUTHORIZED_PATIENT_DATA,
+            "User Signal Upload",
+            "active_session",
+            "User Provided",
+        ).to_dict(),
     }
 
 
-def analyze_signal_csv(raw: bytes | None = None) -> dict[str, Any]:
-    if raw:
-        parsed = dataframe_to_signal(read_csv_bytes(raw))
-    else:
-        sample_path = Path(__file__).resolve().parents[1] / "data" / "sample_ppg.csv"
-        if sample_path.exists():
-            parsed = dataframe_to_signal(read_csv_bytes(sample_path.read_bytes()))
-        else:
-            parsed = demo_ppg_signal()
-    result = analyze_ppg_signal(parsed["signal"], parsed["sampling_rate"], parsed["timestamps"])
+def analyze_signal_csv(raw: bytes | None = None, provenance: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Parse and analyze PPG CSV data. Rejects empty inputs instead of silently falling back to mock files."""
+    if not raw:
+        return {
+            "available": False,
+            "status": "no_signal_provided",
+            "error": "No PPG signal data was provided. Upload a valid CSV or select a research dataset record.",
+            "risk_score": 0.0,
+            "confidence_score": 0.0,
+            "quality_score": 0.0,
+            "reliability": "No Signal",
+            "chart": [],
+            "peaks": [],
+            "warning_flags": [],
+            "heart_rate_estimate": None,
+            "bp_prediction": None,
+            "provenance": None,
+        }
+
+    parsed = dataframe_to_signal(read_csv_bytes(raw))
+    result = analyze_ppg_signal(parsed["signal"], parsed["sampling_rate"], parsed["timestamps"], provenance=provenance)
     result["source"] = {
-        "signal_column": parsed.get("signal_column", "demo_ppg"),
-        "time_column": parsed.get("time_column", "generated_time"),
+        "signal_column": parsed.get("signal_column", "ppg"),
+        "time_column": parsed.get("time_column", "time"),
         "columns": parsed.get("columns", []),
-        "demo_mode": raw is None,
+        "demo_mode": False,
     }
     return result
 

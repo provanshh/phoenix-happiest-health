@@ -1,0 +1,29 @@
+{
+  "record_id": "synthea_patient_normotensive",
+  "source": "Synthea v3.0.0 Synthetic Patient Cohort",
+  "is_synthetic": true,
+  "patient": {
+    "age": 42,
+    "gender": "Female",
+    "height": 168.0,
+    "weight": 68.5,
+    "heart_rate": 72.0,
+    "systolic_bp": 118.0,
+    "diastolic_bp": 76.0,
+    "spo2": 98.0,
+    "sleep_hours": 7.5,
+    "activity_level": "high",
+    "smoking_status": false,
+    "diabetes_history": false,
+    "hypertension_history": false
+  },
+  "conditions": [
+    "Routine annual physical",
+    "No chronic cardiovascular condition"
+  ],
+  "observations": {
+    "total_cholesterol_mg_dl": 175.0,
+    "ldl_mg_dl": 98.0,
+    "fasting_glucose_mg_dl": 88.0
+  }
+}

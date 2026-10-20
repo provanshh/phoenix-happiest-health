@@ -1,4 +1,4 @@
-"""PPG upload and signal analysis routes."""
+"""PPG upload and signal analysis routes with explicit missing-input handling."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ async def upload_signal(request: Request) -> dict:
             raise ValueError("Upload a CSV file or send CSV bytes in the request body.")
         validate_extension(filename or "signal.csv", SIGNAL_EXTENSIONS)
         payload = summarize_signal_upload(raw)
-        payload["filename"] = filename or "raw_body.csv"
+        payload["filename"] = filename or "uploaded_signal.csv"
         return with_disclaimer(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -38,8 +38,7 @@ async def analyze_signal(request: Request) -> dict:
         if filename:
             validate_extension(filename, SIGNAL_EXTENSIONS)
         payload = analyze_signal_csv(raw)
-        payload["filename"] = filename or "sample_ppg.csv"
+        payload["filename"] = filename or ""
         return with_disclaimer(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-

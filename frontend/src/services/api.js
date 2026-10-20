@@ -30,7 +30,20 @@ export async function analyzeSignal(file) {
 }
 
 export async function analyzeTabular(patient) {
-  const response = await api.post("/analyze-tabular", patient);
+  const cleaned = {};
+  for (const [key, val] of Object.entries(patient || {})) {
+    if (val === "" || val === null || val === undefined) {
+      cleaned[key] = null;
+    } else if (
+      ["age", "height", "weight", "heart_rate", "systolic_bp", "diastolic_bp", "spo2", "sleep_hours"].includes(key)
+    ) {
+      const num = Number(val);
+      cleaned[key] = isNaN(num) ? null : num;
+    } else {
+      cleaned[key] = val;
+    }
+  }
+  const response = await api.post("/analyze-tabular", cleaned);
   return response.data;
 }
 
@@ -112,4 +125,39 @@ export async function generateReport(payload) {
     blob: response.data,
     filename: filenameMatch?.[1] || "multimodal_health_risk_report.pdf",
   };
+}
+
+export async function getDatasets() {
+  const response = await api.get("/datasets");
+  return response.data;
+}
+
+export async function getDatasetRecords(datasetId) {
+  const response = await api.get(`/datasets/${datasetId}/records`);
+  return response.data;
+}
+
+export async function loadDatasetRecord(datasetId, recordId) {
+  const response = await api.get(`/datasets/${datasetId}/load/${recordId}`);
+  return response.data;
+}
+
+export async function getDeviceStreamStatus() {
+  const response = await api.get("/device/stream-status");
+  return response.data;
+}
+
+export async function connectDevice(deviceName = "CardioTwin Test BLE Pulse Oximeter") {
+  const response = await api.post("/device/connect", { device_name: deviceName });
+  return response.data;
+}
+
+export async function disconnectDevice() {
+  const response = await api.post("/device/disconnect");
+  return response.data;
+}
+
+export async function predictEcgArrhythmia(payload) {
+  const response = await api.post("/datasets/predict/ecg-arrhythmia", payload);
+  return response.data;
 }

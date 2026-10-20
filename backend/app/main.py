@@ -11,6 +11,7 @@ from .database.db import init_db
 from .routes import (
     alert_routes,
     chatbot_routes,
+    dataset_routes,
     fusion_routes,
     image_routes,
     report_routes,
@@ -25,10 +26,10 @@ from .utils.disclaimer import DISCLAIMER
 
 app = FastAPI(
     title="CardioTwin AI: Multimodal Health Risk Digital Twin API",
-    version="3.0.0",
+    version="3.1.0",
     description=(
-        "Educational multimodal AI system for PPG, structured vitals, symptom notes, "
-        "medical report images, trends, alerts, and longitudinal health memory."
+        "Research and educational multimodal AI system for PPG, structured vitals, symptom notes, "
+        "medical reports, longitudinal health memory, and research dataset ingestion."
     ),
 )
 
@@ -67,13 +68,16 @@ app.include_router(report_routes.router)
 app.include_router(trend_routes.router)
 app.include_router(alert_routes.router)
 app.include_router(chatbot_routes.router)
+app.include_router(dataset_routes.router)
 
 
 @app.get("/")
 async def root() -> dict:
     return {
         "project": "CardioTwin AI: Multimodal Health Risk Digital Twin",
-        "description": "Fuses PPG signals, patient vitals, symptoms, reports, trends, alerts, and summaries.",
+        "version": "3.1.0",
+        "system_status": "RESEARCH_PROTOTYPE_NOT_CLINICALLY_VALIDATED",
+        "description": "Fuses PPG signals, patient vitals, symptoms, reports, trends, alerts, and research datasets.",
         "status": "running",
         "fusion_weights": get_fusion_weights(),
         "disclaimer": DISCLAIMER,
@@ -82,4 +86,8 @@ async def root() -> dict:
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "disclaimer": DISCLAIMER}
+    return {
+        "status": "ok",
+        "system_status": "RESEARCH_PROTOTYPE_NOT_CLINICALLY_VALIDATED",
+        "disclaimer": DISCLAIMER,
+    }

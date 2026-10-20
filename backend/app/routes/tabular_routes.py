@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from ..models.tabular_model import analyze_tabular
 from ..utils.disclaimer import with_disclaimer
@@ -15,20 +15,34 @@ router = APIRouter(tags=["Tabular"])
 
 
 class PatientPayload(BaseModel):
-    age: float | None = Field(default=48)
-    gender: str | None = Field(default="Female")
-    height: float | None = Field(default=168)
-    weight: float | None = Field(default=78)
-    heart_rate: float | None = Field(default=88)
-    systolic_bp: float | None = Field(default=138)
-    diastolic_bp: float | None = Field(default=86)
-    spo2: float | None = Field(default=96)
-    sleep_hours: float | None = Field(default=5.8)
-    activity_level: str | None = Field(default="low")
+    age: float | None = Field(default=None)
+    gender: str | None = Field(default=None)
+    height: float | None = Field(default=None)
+    weight: float | None = Field(default=None)
+    heart_rate: float | None = Field(default=None)
+    systolic_bp: float | None = Field(default=None)
+    diastolic_bp: float | None = Field(default=None)
+    spo2: float | None = Field(default=None)
+    sleep_hours: float | None = Field(default=None)
+    activity_level: str | None = Field(default="moderate")
     smoking_status: bool | str | None = Field(default=False)
     diabetes_history: bool | str | None = Field(default=False)
-    hypertension_history: bool | str | None = Field(default=True)
+    hypertension_history: bool | str | None = Field(default=False)
     existing_risk_factors: list[str] | str | None = Field(default_factory=list)
+    medication_status: str | None = Field(default="none")
+
+    @model_validator(mode="before")
+    @classmethod
+    def clean_empty_strings(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            cleaned = {}
+            for k, v in values.items():
+                if v == "" or v is None:
+                    cleaned[k] = None
+                else:
+                    cleaned[k] = v
+            return cleaned
+        return values
 
 
 def _dump(model: BaseModel) -> dict[str, Any]:
@@ -39,4 +53,3 @@ def _dump(model: BaseModel) -> dict[str, Any]:
 async def analyze_patient_tabular(payload: PatientPayload | None = None) -> dict:
     data = _dump(payload) if payload else _dump(PatientPayload())
     return with_disclaimer(analyze_tabular(data))
-
